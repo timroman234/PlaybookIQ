@@ -1,0 +1,45 @@
+{
+  "generated": "2026-07-31",
+  "injuries": [
+    {
+      "player_id": "P002",
+      "player_name": "Marcus Ehlers",
+      "date": "2025-10-12",
+      "injury_type": "Grade 1 hamstring strain",
+      "body_part": "left hamstring",
+      "status": "questionable",
+      "expected_return": "2025-10-26",
+      "notes": "Sustained during third-quarter cutback run; limited in practice reps since."
+    },
+    {
+      "player_id": "P005",
+      "player_name": "Isaiah Whitfield",
+      "date": "2025-09-30",
+      "injury_type": "High ankle sprain",
+      "body_part": "right ankle",
+      "status": "injured_reserve",
+      "expected_return": "2025-11-09",
+      "notes": "Non-contact injury during backpedal in coverage drill; walking boot for 2 weeks."
+    },
+    {
+      "player_id": "P007",
+      "player_name": "Aiden Kowalski",
+      "date": "2025-11-02",
+      "injury_type": "AC joint sprain",
+      "body_part": "left shoulder (non-throwing)",
+      "status": "probable",
+      "expected_return": "2025-11-09",
+      "notes": "Landed on shoulder after a scramble; no impact expected on throwing mechanics."
+    },
+    {
+      "player_id": "P010",
+      "player_name": "Jaylen Fitch",
+      "date": "2025-08-20",
+      "injury_type": "Turf toe",
+      "body_part": "right big toe",
+      "status": "active",
+      "expected_return": "2025-08-20",
+      "notes": "Managed with a stiffer insole and taping; has not missed a snap since diagnosis."
+    }
+  ]
+}

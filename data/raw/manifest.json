@@ -1,0 +1,40 @@
+{
+  "generated": "2026-07-31",
+  "documents": [
+    {
+      "path": "players.json",
+      "document_type": "player_profile",
+      "player_id": null
+    },
+    {
+      "path": "injury_logs.json",
+      "document_type": "injury_log",
+      "player_id": null
+    },
+    {
+      "path": "sample_scouting_report.txt",
+      "document_type": "scouting_report",
+      "player_id": "P005"
+    },
+    {
+      "path": "sample_game_transcript.txt",
+      "document_type": "game_transcript",
+      "player_id": null
+    },
+    {
+      "path": "playbooks/trips_right_smash.txt",
+      "document_type": "playbook",
+      "player_id": null
+    },
+    {
+      "path": "playbooks/cover3_buzz_blitz.txt",
+      "document_type": "playbook",
+      "player_id": null
+    },
+    {
+      "path": "playbooks/inside_zone_read.txt",
+      "document_type": "playbook",
+      "player_id": null
+    }
+  ]
+}

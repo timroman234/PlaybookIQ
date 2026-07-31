@@ -1,0 +1,167 @@
+{
+  "generated": "2026-07-31",
+  "teams": [
+    "Ironclad City Miners",
+    "Bay Harbor Kraken",
+    "Northgate Sentinels",
+    "Prairie Wolves"
+  ],
+  "players": [
+    {
+      "player_id": "P001",
+      "name": "Darnell Voss",
+      "position": "QB",
+      "team": "Ironclad City Miners",
+      "season": 2025,
+      "stats": {
+        "pass_yards": 4128,
+        "pass_tds": 31,
+        "interceptions": 9,
+        "completion_pct": 66.4
+      }
+    },
+    {
+      "player_id": "P002",
+      "name": "Marcus Ehlers",
+      "position": "RB",
+      "team": "Ironclad City Miners",
+      "season": 2025,
+      "stats": {
+        "rush_yards": 1187,
+        "rush_tds": 11,
+        "yards_per_carry": 4.6,
+        "fumbles": 2
+      }
+    },
+    {
+      "player_id": "P003",
+      "name": "Trevon Ashby",
+      "position": "WR",
+      "team": "Ironclad City Miners",
+      "season": 2025,
+      "stats": {
+        "receptions": 88,
+        "rec_yards": 1310,
+        "rec_tds": 9,
+        "yards_after_catch": 412
+      }
+    },
+    {
+      "player_id": "P004",
+      "name": "Colton Reyes",
+      "position": "LB",
+      "team": "Bay Harbor Kraken",
+      "season": 2025,
+      "stats": {
+        "tackles": 121,
+        "sacks": 6.5,
+        "forced_fumbles": 3,
+        "interceptions": 1
+      }
+    },
+    {
+      "player_id": "P005",
+      "name": "Isaiah Whitfield",
+      "position": "CB",
+      "team": "Bay Harbor Kraken",
+      "season": 2025,
+      "stats": {
+        "tackles": 54,
+        "interceptions": 5,
+        "passes_defended": 14,
+        "penalties": 4
+      }
+    },
+    {
+      "player_id": "P006",
+      "name": "Grant Okafor",
+      "position": "S",
+      "team": "Bay Harbor Kraken",
+      "season": 2025,
+      "stats": {
+        "tackles": 78,
+        "interceptions": 2,
+        "passes_defended": 9,
+        "sacks": 1.0
+      }
+    },
+    {
+      "player_id": "P007",
+      "name": "Aiden Kowalski",
+      "position": "QB",
+      "team": "Northgate Sentinels",
+      "season": 2025,
+      "stats": {
+        "pass_yards": 3654,
+        "pass_tds": 24,
+        "interceptions": 13,
+        "completion_pct": 61.2
+      }
+    },
+    {
+      "player_id": "P008",
+      "name": "DeShawn Pruitt",
+      "position": "WR",
+      "team": "Northgate Sentinels",
+      "season": 2025,
+      "stats": {
+        "receptions": 71,
+        "rec_yards": 1042,
+        "rec_tds": 7,
+        "yards_after_catch": 298
+      }
+    },
+    {
+      "player_id": "P009",
+      "name": "Nolan Vasquez",
+      "position": "TE",
+      "team": "Northgate Sentinels",
+      "season": 2025,
+      "stats": {
+        "receptions": 52,
+        "rec_yards": 611,
+        "rec_tds": 5,
+        "blocking_grade": 78.2
+      }
+    },
+    {
+      "player_id": "P010",
+      "name": "Jaylen Fitch",
+      "position": "DL",
+      "team": "Prairie Wolves",
+      "season": 2025,
+      "stats": {
+        "tackles": 45,
+        "sacks": 10.5,
+        "tackles_for_loss": 14,
+        "qb_hits": 22
+      }
+    },
+    {
+      "player_id": "P011",
+      "name": "Bryce Talmadge",
+      "position": "OL",
+      "team": "Prairie Wolves",
+      "season": 2025,
+      "stats": {
+        "games_started": 17,
+        "sacks_allowed": 2,
+        "penalties": 5,
+        "pass_block_grade": 82.4
+      }
+    },
+    {
+      "player_id": "P012",
+      "name": "Rico Delvecchio",
+      "position": "K",
+      "team": "Prairie Wolves",
+      "season": 2025,
+      "stats": {
+        "fg_made": 27,
+        "fg_attempted": 31,
+        "long": 54,
+        "touchbacks": 38
+      }
+    }
+  ]
+}
