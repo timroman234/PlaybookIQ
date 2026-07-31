@@ -1,0 +1,43 @@
+{
+  "name": "playbookiq-guardrail",
+  "description": "PII redaction, content filtering, and grounding checks for PlaybookIQ tactical queries.",
+  "blockedInputMessaging": "This request cannot be processed due to content policy restrictions.",
+  "blockedOutputsMessaging": "The generated response was withheld due to content policy restrictions.",
+  "contentPolicyConfig": {
+    "filtersConfig": [
+      {"type": "HATE", "inputStrength": "HIGH", "outputStrength": "HIGH"},
+      {"type": "INSULTS", "inputStrength": "HIGH", "outputStrength": "HIGH"},
+      {"type": "SEXUAL", "inputStrength": "HIGH", "outputStrength": "HIGH"},
+      {"type": "VIOLENCE", "inputStrength": "MEDIUM", "outputStrength": "MEDIUM"},
+      {"type": "MISCONDUCT", "inputStrength": "MEDIUM", "outputStrength": "MEDIUM"}
+    ]
+  },
+  "sensitiveInformationPolicyConfig": {
+    "piiEntitiesConfig": [
+      {"type": "NAME", "action": "ANONYMIZE"},
+      {"type": "US_SOCIAL_SECURITY_NUMBER", "action": "BLOCK"},
+      {"type": "EMAIL", "action": "ANONYMIZE"},
+      {"type": "PHONE", "action": "ANONYMIZE"},
+      {"type": "AGE", "action": "ANONYMIZE"}
+    ]
+  },
+  "topicPolicyConfig": {
+    "topicsConfig": [
+      {
+        "name": "MedicalOrLegalAdvice",
+        "definition": "Requests for medical diagnosis, treatment recommendations, or legal advice regarding player injuries or contracts, beyond factual scouting/injury-log summarization.",
+        "examples": [
+          "What treatment should Isaiah Whitfield get for his ankle sprain?",
+          "Can we void this player's contract for a pre-existing condition?"
+        ],
+        "type": "DENY"
+      }
+    ]
+  },
+  "contextualGroundingPolicyConfig": {
+    "filtersConfig": [
+      {"type": "GROUNDING", "threshold": 0.5},
+      {"type": "RELEVANCE", "threshold": 0.5}
+    ]
+  }
+}
