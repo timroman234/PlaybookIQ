@@ -13,20 +13,28 @@ hands-on practice.
 ## Status
 
 - [x] Phase 0 — Scaffolding, git, environment
-- [ ] Phase 1 — AWS IAM + Bedrock model access (in progress — awaiting `playbookiq-dev` access key)
+- [x] Phase 1 — AWS IAM + Bedrock model access (playbookiq-dev user created, Bedrock access granted; account is on a new-account daily token throttle for invoke_model)
 - [x] Phase 2 — Synthetic sports data
 - [x] Phase 3 — Pluggable storage interface (local)
-- [x] Phase 4 — Real Bedrock model invocation (code + mocked tests done; live smoke test pending Phase 1)
-- [x] Phase 5 — Embeddings + local RAG (code + tests done; live ingestion pending Phase 1)
-- [ ] Phase 6 — Bedrock Guardrails
-- [x] Phase 7 — Bedrock Agents / Action Groups (local tool contract done; real Bedrock Agent pending)
+- [x] Phase 4 — Real Bedrock model invocation (code + mocked tests done; live invoke_model blocked by daily token quota, see below)
+- [x] Phase 5 — Embeddings + local RAG (code + tests done; live ingestion blocked by the same quota)
+- [x] Phase 6 — Bedrock Guardrails (created + published + verified live: PII prompt correctly blocked)
+- [x] Phase 7 — Bedrock Agents / Action Groups (local tool contract done; real Bedrock Agent deferred until quota clears)
 - [x] Phase 8 — FastAPI service layer
 - [x] Phase 9 — Streamlit frontend (Carbon theme)
-- [ ] Phase 10 — Containerization
-- [ ] Phase 11 — Real S3 swap-in
+- [x] Phase 10 — Containerization (built + ran locally, verified end-to-end in browser)
+- [x] Phase 11 — Real S3 swap-in (bucket created, data uploaded, verified)
 - [ ] Phase 12 — Real OpenSearch Serverless + Bedrock Knowledge Base
 - [ ] Phase 13 — AWS CDK infrastructure as code
 - [ ] Phase 14 — AWS App Runner deployment
+
+**Known blocker:** the AWS account is hitting `ThrottlingException: Too many tokens per day`
+on Bedrock `invoke_model` (new-account quota). Guardrail-blocked requests still succeed
+(near-zero token cost), proving the wiring is correct — full generation calls need either
+a daily quota reset or a Service Quota increase request. Also note: the PRD's literal
+`claude-3-5-sonnet-20240620` model ID is gone from the catalog; newer Claude models need
+an inference profile ID (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`, etc.), and the
+very newest model (`claude-sonnet-5`) is access-denied separately from the rest.
 
 ## Local development
 
