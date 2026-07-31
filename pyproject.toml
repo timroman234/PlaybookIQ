@@ -22,3 +22,6 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.1",
 ]
+
+[tool.ruff.lint]
+ignore = ["B008"]  # FastAPI's Depends()-in-default-argument is the standard DI pattern

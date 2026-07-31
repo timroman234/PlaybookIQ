@@ -7,8 +7,13 @@ Usage:
     uv run python scripts/smoke_test_bedrock.py
 """
 
+import sys
 import time
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
 from app.services.bedrock_service import BedrockModelAccessError, BedrockService
@@ -27,6 +32,10 @@ def main() -> None:
             response = service.invoke(prompt, use_fast_model=use_fast_model)
         except BedrockModelAccessError as exc:
             print(f"BLOCKED: {exc}")
+            continue
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            print(f"BLOCKED ({code}): {exc}")
             continue
         elapsed = time.perf_counter() - start
         print(f"({elapsed:.2f}s) {response}")

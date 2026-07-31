@@ -5,7 +5,7 @@ RAG ingestion pipeline (Phase 5+). No real players, teams, or events are referen
 """
 
 import json
-from datetime import date
+from datetime import UTC, datetime
 from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
@@ -178,8 +178,8 @@ def main() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     (DATA_DIR / "playbooks").mkdir(parents=True, exist_ok=True)
 
-    write_json(DATA_DIR / "players.json", {"generated": str(date.today()), "teams": TEAMS, "players": PLAYERS})
-    write_json(DATA_DIR / "injury_logs.json", {"generated": str(date.today()), "injuries": INJURY_LOGS})
+    write_json(DATA_DIR / "players.json", {"generated": str(datetime.now(UTC).date()), "teams": TEAMS, "players": PLAYERS})
+    write_json(DATA_DIR / "injury_logs.json", {"generated": str(datetime.now(UTC).date()), "injuries": INJURY_LOGS})
 
     (DATA_DIR / "sample_scouting_report.txt").write_text(SCOUTING_REPORT, encoding="utf-8")
     (DATA_DIR / "sample_game_transcript.txt").write_text(GAME_TRANSCRIPT, encoding="utf-8")
@@ -197,7 +197,7 @@ def main() -> None:
             for name in PLAYBOOKS
         ],
     ]
-    write_json(DATA_DIR / "manifest.json", {"generated": str(date.today()), "documents": manifest})
+    write_json(DATA_DIR / "manifest.json", {"generated": str(datetime.now(UTC).date()), "documents": manifest})
 
     print(f"Synthetic data written to {DATA_DIR}")
 

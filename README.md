@@ -12,16 +12,16 @@ hands-on practice.
 
 ## Status
 
-- [ ] Phase 0 — Scaffolding, git, environment
-- [ ] Phase 1 — AWS IAM + Bedrock model access
-- [ ] Phase 2 — Synthetic sports data
-- [ ] Phase 3 — Pluggable storage interface (local)
-- [ ] Phase 4 — Real Bedrock model invocation
-- [ ] Phase 5 — Embeddings + local RAG
+- [x] Phase 0 — Scaffolding, git, environment
+- [ ] Phase 1 — AWS IAM + Bedrock model access (in progress — awaiting `playbookiq-dev` access key)
+- [x] Phase 2 — Synthetic sports data
+- [x] Phase 3 — Pluggable storage interface (local)
+- [x] Phase 4 — Real Bedrock model invocation (code + mocked tests done; live smoke test pending Phase 1)
+- [x] Phase 5 — Embeddings + local RAG (code + tests done; live ingestion pending Phase 1)
 - [ ] Phase 6 — Bedrock Guardrails
-- [ ] Phase 7 — Bedrock Agents / Action Groups
-- [ ] Phase 8 — FastAPI service layer
-- [ ] Phase 9 — Streamlit frontend (Carbon theme)
+- [x] Phase 7 — Bedrock Agents / Action Groups (local tool contract done; real Bedrock Agent pending)
+- [x] Phase 8 — FastAPI service layer
+- [x] Phase 9 — Streamlit frontend (Carbon theme)
 - [ ] Phase 10 — Containerization
 - [ ] Phase 11 — Real S3 swap-in
 - [ ] Phase 12 — Real OpenSearch Serverless + Bedrock Knowledge Base

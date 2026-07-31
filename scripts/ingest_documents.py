@@ -8,8 +8,11 @@ Usage:
 """
 
 import json
-from datetime import datetime, timezone
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 
@@ -92,7 +95,7 @@ def main() -> None:
         + documents_from_manifest_text_files(DATA_DIR / "manifest.json")
     )
 
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
     for idx, doc in enumerate(documents):
         vector = embedding_service.embed(doc["text"])
         vector_store.upsert(

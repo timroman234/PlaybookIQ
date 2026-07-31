@@ -13,7 +13,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from styles import get_carbon_css  # noqa: E402
+from styles import get_carbon_css
 
 load_dotenv()
 
