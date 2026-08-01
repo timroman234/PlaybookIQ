@@ -1,0 +1,28 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["bedrock:InvokeModel"],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["bedrock-agent-runtime:Retrieve", "bedrock-agent-runtime:InvokeAgent"],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::playbookiq-raw-docs-206152729458",
+        "arn:aws:s3:::playbookiq-raw-docs-206152729458/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["aoss:APIAccessAll"],
+      "Resource": "arn:aws:aoss:us-east-1:206152729458:collection/*"
+    }
+  ]
+}

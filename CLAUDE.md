@@ -52,10 +52,14 @@ docker run --rm -p 8501:8501 --env-file .env playbookiq:local
 - Model IDs in `.env` are the current verified-working ones for this account — **do not**
   revert to the PRD's literal `claude-3-5-sonnet-20240620` ID; it's gone from the catalog.
   Newer models need an inference profile ID (`us.anthropic....`), not a bare model ID.
-- **Cost discipline:** OpenSearch Serverless and (later) App Runner bill continuously while
-  they exist, unlike Bedrock/S3/Guardrails which are pay-per-call. Never leave either
-  running between work sessions — create, verify, tear down. See `docs/RESUME_HERE.md` for
-  exact teardown commands.
+- **Cost discipline:** OpenSearch Serverless and the ECS Express Mode deployment (ALB +
+  Fargate task) bill continuously while they exist, unlike Bedrock/S3/Guardrails which are
+  pay-per-call. Never leave either running between work sessions — create, verify, tear
+  down. See `docs/RESUME_HERE.md` for exact teardown commands.
+- **AWS App Runner cannot be used** — closed to new customers as of 2026-04-30. Deployment
+  goes through **Amazon ECS Express Mode** instead (AWS's own recommended replacement);
+  it still requires a pre-built container image (Phase 10's Dockerfile), it just automates
+  the surrounding infrastructure (ALB, HTTPS, security groups, auto-scaling).
 
 ## Conventions
 

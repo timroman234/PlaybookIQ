@@ -465,7 +465,153 @@ real AWS credentials or network calls needed in `tests/test_main.py`.
 
 ---
 
-## 12. Cross-cutting lessons for the interview
+## 12. AWS account tiers: the "Free Plan" and why so much felt stuck
+
+A full day into hitting friction — the Bedrock daily token quota showing "Not Available"
+for a Service Quota increase, `AWSAppRunnerFullAccess` not fixing App Runner's
+`SubscriptionRequiredException` — the actual root cause surfaced: this account had been on
+AWS's newer **Free Plan** signup path the entire time, not a standard account. The Free
+Plan intentionally restricts access to a curated set of free-tier-eligible services until
+you upgrade, even with a valid payment method and active free credits on file.
+
+**This retroactively explains a lot of the day's friction** that looked like isolated IAM
+or quota problems but was actually one root cause wearing different masks. After manually
+upgrading the account (Billing and Cost Management → look for an "Upgrade your account"
+prompt), the App Runner `SubscriptionRequiredException` was still present for an unrelated
+reason (see §13), and the Bedrock daily-token quota *also* didn't clear immediately —
+account-tier upgrades don't necessarily propagate to every downstream quota/service gate
+instantly. **Lesson:** when several apparently-unrelated services all fail in oddly similar
+"you're not allowed to use this" ways on the same brand-new account, check the account
+tier/plan itself before assuming each is an independent IAM or quota problem to debug one
+at a time.
+
+---
+
+## 13. AWS App Runner: closed to new customers mid-project
+
+Went to deploy Phase 14 and hit a wall that had nothing to do with permissions or quotas:
+the App Runner console displayed —
+
+> "Starting April 30, 2026, AWS App Runner is no longer accepting new customers... For
+> deploying and running containerized applications, we recommend Amazon ECS Express Mode."
+
+This is a genuinely different category of blocker than everything else in this build: not
+a missing permission, not a quota, but a **service AWS itself is winding down**. No IAM
+grant or account upgrade fixes this — a *new* App Runner service simply cannot be created
+on this account anymore, full stop (existing App Runner services elsewhere remain
+operational, per the notice).
+
+**Lesson for the interview:** part of staying current in a fast-moving cloud platform is
+knowing when to stop debugging and start reading the actual guidance the platform is
+handing you. AWS explicitly named its own recommended replacement (ECS Express Mode) right
+in the deprecation notice — the correct move was to pivot immediately rather than fight to
+resurrect a sunsetting service. This is also a legitimately good interview story: it shows
+adapting to platform changes in real time rather than working from stale documentation.
+
+**Before pivoting, we verified a specific assumption rather than guessing:** would ECS
+Express Mode remove the need for the Dockerfile/containerization work already done in
+Phase 10? Checked AWS's own docs and announcement post rather than assume — answer: no.
+Express Mode automates the *infrastructure* around a container (load balancer, HTTPS
+endpoint, security groups, auto-scaling) but still requires you to bring a pre-built
+container image; it does not build images from source. So all of Phase 10's work carried
+over unchanged — only the deployment *target* changed.
+
+---
+
+## 14. Amazon ECS Express Mode — the actual Phase 14 deployment
+
+### Two more IAM roles, plus a permission-scope adjustment
+ECS Express Mode needs exactly two roles (a third, the task role, is really "your app's
+own permissions" and technically optional but essential for anything beyond a static demo):
+
+1. **Task execution role** (trust: `ecs-tasks.amazonaws.com`) — lets the ECS agent pull the
+   image from ECR and write logs. Managed policy: `AmazonECSTaskExecutionRolePolicy`.
+2. **Infrastructure role** (trust: `ecs.amazonaws.com`) — lets ECS provision the ALB, target
+   groups, security groups, and auto-scaling on your behalf. Managed policy:
+   `AmazonECSInfrastructureRoleforExpressGatewayServices`.
+3. **Task role** (trust: `ecs-tasks.amazonaws.com`, same as execution role's trust, different
+   purpose) — what the *application code* actually assumes at runtime. We scoped this to
+   exactly what PlaybookIQ needs: `bedrock:InvokeModel`, `bedrock-agent-runtime:Retrieve`/
+   `InvokeAgent`, `s3:GetObject`/`PutObject`/`ListBucket` scoped to our bucket ARN, and
+   `aoss:APIAccessAll` scoped to the collection ARN pattern (even though no collection
+   existed at the time — IAM policies can reference resources that don't exist yet).
+
+Creating these under our own naming convention (`playbookiq-ecs-*`) required widening the
+IAM role-management permission we'd scoped to `cdk-*` role names for Phase 13 — extended
+the `Resource` list to also cover `arn:aws:iam::*:role/playbookiq-*`, keeping it scoped
+rather than opening role creation to `*`.
+
+Separately, `playbookiq-dev` also needed two more managed policies neither Phase 1 nor
+Phase 13 had granted: `AmazonECS_FullAccess` and `CloudWatchLogsFullAccess` (ECS Express
+Mode logs to CloudWatch, and the execution role's managed policy only covers
+`logs:CreateLogStream`/`PutLogEvents`, not `logs:CreateLogGroup` — the log group itself has
+to be created ahead of time by a principal that *does* have that permission).
+
+### The actual command
+```bash
+aws ecs create-express-gateway-service \
+  --cluster playbookiq-cluster \
+  --service-name playbookiq-service \
+  --execution-role-arn arn:aws:iam::206152729458:role/playbookiq-ecs-execution-role \
+  --infrastructure-role-arn arn:aws:iam::206152729458:role/playbookiq-ecs-infrastructure-role \
+  --task-role-arn arn:aws:iam::206152729458:role/playbookiq-ecs-task-role \
+  --health-check-path /_stcore/health \
+  --cpu 512 --memory 1024 \
+  --primary-container image=<ecr-uri>:latest,containerPort=8501,awsLogsConfiguration={logGroup=/ecs/playbookiq,logStreamPrefix=ecs},environment=[...]
+```
+
+Two details worth remembering:
+- **Health check path**: our single container only exposes Streamlit externally
+  (port 8501) — FastAPI's own `/health` endpoint (Phase 8) is internal-only, reachable at
+  `localhost:8000` *inside* the container, not from the ALB. Streamlit ships its own
+  built-in health endpoint, **`/_stcore/health`**, which is what the ALB actually needs to
+  hit — using our FastAPI `/health` path here would have pointed the health check at a port
+  nothing outside the container can reach.
+- **Environment variables, not baked into the image**: model IDs, guardrail ID, bucket
+  name, storage/vector-store backend flags — all passed via `--primary-container`'s
+  `environment` list. No AWS credentials of any kind are in there; the task role provides
+  those automatically via the container credential provider chain, identical in spirit to
+  how the app already worked locally against a named CLI profile — just swapping "profile"
+  for "task role" as the credential source.
+
+### Verified live, and it actually proved something
+The service came up with an auto-generated HTTPS endpoint
+(`https://pl-*.ecs.us-east-1.on.aws`) within about 5 minutes. Opened it in a real browser —
+full Carbon-themed UI, sidebar showing "API: Connected" (confirming Streamlit correctly
+reaches FastAPI over `localhost:8000` *inside the Fargate task*, not just inside Docker
+Desktop locally). Ran a real query through the public URL, got a 500 — checked the
+CloudWatch logs (`aws logs tail /ecs/playbookiq`) and found the exact same
+`ThrottlingException: Too many tokens per day` we'd been tracking all along, but this time
+raised from **inside the deployed container, using the task role's temporary credentials**
+— no access keys anywhere. That's a genuinely meaningful verification: the task role's IAM
+permissions and the container credential chain both work correctly; the only remaining
+blocker is the account-wide Bedrock quota, identical to every environment we've tested in
+(local, Docker Desktop, now Fargate).
+
+### Teardown: not everything is a `delete-service` call
+Deleting an Express service isn't a single quick API call the way `docker stop` is —
+`aws ecs delete-express-gateway-service --service-arn <arn>` triggers ECS to tear down
+*every* managed resource it created (ALB, listener, listener rule, 2 target groups,
+security groups, auto-scaling policy, scalable target, CloudWatch rollback alarm) in
+dependency order. Watching it with `--monitor-resources RESOURCE --monitor-mode TEXT-ONLY`
+showed a real, instructive failure-and-retry: the load balancer's security group hit a
+`DependencyViolation` ("has a dependent object") for about a minute after the ALB itself
+was deleted — the ALB's network interface takes a short time to fully detach before AWS
+will let you delete the security group it was attached to. ECS's own deletion process
+retried automatically until it succeeded ("Service is inactive"), rather than failing
+outright. **Lesson:** `DependencyViolation` on a security group deletion, right after
+deleting whatever was using it, is usually a race condition to wait out, not a sign
+something is stuck — verify by re-checking after a minute before assuming a manual
+intervention is needed.
+
+Total cost exposure for the live verification: roughly 25 minutes of Fargate task + ALB
+time (created ~16:44 UTC, fully torn down ~17:12 UTC) — on the order of a few cents,
+consistent with our "create, verify, tear down" discipline from OpenSearch Serverless (§7)
+and CDK (§9).
+
+---
+
+## 15. Cross-cutting lessons for the interview
 
 1. **IAM debugging loop:** attempt → read the exact action name from
    `AccessDeniedException` → grant precisely that. Faster and more accurate than
@@ -476,9 +622,9 @@ real AWS credentials or network calls needed in `tests/test_main.py`.
    immediately does nothing).
 3. **Managed-API pay-per-call services vs. provisioned bills-while-it-exists
    infrastructure** is the single most important AWS cost distinction in this whole
-   build. OpenSearch Serverless and (later) App Runner are in the second category and
-   need active teardown discipline; Bedrock/S3/Guardrails are in the first and can be
-   left alone indefinitely at near-zero cost.
+   build. OpenSearch Serverless and ECS Express Mode (ALB + Fargate task) are in the
+   second category and need active teardown discipline; Bedrock/S3/Guardrails are in the
+   first and can be left alone indefinitely at near-zero cost.
 4. **Console UX changes fast** — both the Bedrock "Model access" page retirement and the
    IAM access-key creation nudge toward SSO happened without us expecting them; always be
    ready to adapt the *documented* flow to whatever the console actually shows.
@@ -501,3 +647,22 @@ real AWS credentials or network calls needed in `tests/test_main.py`.
    `cdk bootstrap` needed `cloudformation:*`, scoped IAM role management, `ecr:*`, and
    `ssm:*` — none of which the *application* itself needs at runtime. Don't conflate
    "permissions to deploy infrastructure" with "permissions the deployed workload uses."
+10. **When several unrelated-looking services all fail in similar "not allowed" ways on
+    a brand-new account, check the account tier itself first.** A whole day of what looked
+    like independent IAM/quota debugging (Bedrock quota, App Runner subscription) traced
+    back to one thing: the account was on AWS's restricted Free Plan the entire time.
+11. **Read the platform's own deprecation notices instead of fighting them.** App Runner
+    being closed to new customers wasn't a permissions problem to solve — it was AWS
+    explicitly naming a replacement (ECS Express Mode) in the same banner. Recognizing
+    "this isn't fixable, pivot" is as important a skill as persistent debugging.
+12. **A load-balanced deployment has two ports/paths that matter, and they're not the
+    same one:** the container's *internal* API health check (FastAPI's `/health` on
+    `localhost:8000`) is unreachable from outside the task; the ALB needs a health check
+    path on the *externally exposed* port (Streamlit's built-in `/_stcore/health` on
+    8501). Wiring the wrong one silently breaks the health check with no obvious error
+    pointing at the actual mismatch.
+13. **`DependencyViolation` on a resource deletion, right after deleting whatever used
+    it, is usually a race condition to wait out — not a stuck deployment.** ECS's own
+    Express Mode teardown hit and auto-resolved exactly this (a security group waiting on
+    its ALB's network interface to detach) within about a minute, without any manual
+    intervention.

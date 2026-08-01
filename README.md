@@ -2,7 +2,11 @@
 
 Enterprise sports-intelligence RAG/agent demo (fictional client "Sportsnexa") built as a
 hands-on tour through AWS Bedrock, OpenSearch Serverless, S3, Guardrails, Bedrock Agents,
-Docker, CDK, and App Runner. See `PlaybookIQ_PRD.pdf` for the original spec.
+Docker, CDK, and cloud deployment. See `PlaybookIQ_PRD.pdf` for the original spec.
+
+Note: the PRD targets AWS App Runner for deployment, but App Runner closed to new
+customers as of 2026-04-30 — this build deploys via **Amazon ECS Express Mode** instead
+(AWS's own recommended replacement), which still uses the same Dockerfile from Phase 10.
 
 Built phase-by-phase, skill-by-skill, following the plan in
 `C:\Users\admin\.claude\plans\i-need-to-build-zesty-spark.md`. Each phase starts real
@@ -26,15 +30,18 @@ hands-on practice.
 - [x] Phase 11 — Real S3 swap-in (bucket created, data uploaded, verified)
 - [ ] Phase 12 — Real OpenSearch Serverless + Bedrock Knowledge Base (collection, policies, and k-NN index were created and verified, then torn down to stop billing before ingestion could complete — see docs)
 - [x] Phase 13 — AWS CDK infrastructure as code (bootstrap → synth → deploy → verify → destroy all done live; S3 bucket + OpenSearch Serverless collection provisioned as code and torn down within ~7 minutes)
-- [ ] Phase 14 — AWS App Runner deployment
+- [x] Phase 14 — Deploy to the cloud via **Amazon ECS Express Mode** (pivoted from App Runner, which is closed to new customers) — live public HTTPS endpoint verified in a browser, task role IAM auth confirmed working end-to-end, then torn down
 
 **Known blocker:** the AWS account is hitting `ThrottlingException: Too many tokens per day`
-on Bedrock `invoke_model` (new-account quota). Guardrail-blocked requests still succeed
-(near-zero token cost), proving the wiring is correct — full generation calls need either
-a daily quota reset or a Service Quota increase request. Also note: the PRD's literal
-`claude-3-5-sonnet-20240620` model ID is gone from the catalog; newer Claude models need
-an inference profile ID (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`, etc.), and the
-very newest model (`claude-sonnet-5`) is access-denied separately from the rest.
+on Bedrock `invoke_model` (new-account quota) — confirmed still present even after
+upgrading the account off AWS's restricted Free Plan. Guardrail-blocked requests still
+succeed (near-zero token cost), proving the wiring is correct everywhere it's been tested
+(local, Docker, and the deployed ECS service) — full generation calls need either a Service
+Quota increase (via an AWS Support case, since self-service shows "Not Available") or more
+time. Also note: the PRD's literal `claude-3-5-sonnet-20240620` model ID is gone from the
+catalog; newer Claude models need an inference profile ID
+(`us.anthropic.claude-sonnet-4-5-20250929-v1:0`, etc.), and the very newest model
+(`claude-sonnet-5`) is access-denied separately from the rest.
 
 ## Documentation
 
