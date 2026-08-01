@@ -744,7 +744,57 @@ Serverless (§7) or the ECS Express service (§14).
 
 ---
 
-## 17. Cross-cutting lessons for the interview
+## 17. Retrospective: would starting with AgentCore have changed much else?
+
+Worth asking directly, since it's exactly the kind of architectural-reasoning question an
+interviewer would raise: if Phase 7 had targeted AgentCore from the very beginning
+(instead of following the PRD's Classic Agents design until the pivot in §15), how much of
+the rest of the build would have looked different?
+
+**Answer: surprisingly little — mostly timing/ordering, not architecture.** The reason is
+almost entirely a credit to how the project was scoped, not luck:
+
+- **RAG, storage, and deployment are clean, separate concerns behind interfaces**
+  (`VectorStoreBackend`, `StorageBackend`), never coupled to the agent layer. The Titan
+  Embeddings → OpenSearch Serverless → S3 pipeline, Guardrails, and the ECS Express Mode
+  deployment of the main Streamlit+FastAPI app are all orthogonal to which agent framework
+  handles tool-calling.
+- **Neither Classic Agents nor AgentCore is something you import into the app process** —
+  both are separate managed services invoked over the network. So `/agent-query` in
+  `app/main.py` would have looked almost identical either way: call a boto3 client, get a
+  response, return it. Only the specific client (`bedrock-agent-runtime` vs.
+  `bedrock-agentcore`) would differ.
+
+**What genuinely would have shifted, all timing/ordering rather than structural:**
+- Docker/ECR/arm64 experience would have been built *first* via the agent container
+  (Phase 7), then reused for Phase 14's ECS Express Mode — the reverse of what actually
+  happened (main-app container skills from Phase 10 got reused for the agent in §16).
+- "Bedrock Agents Classic is closed to new customers" would likely have been discovered as
+  the **first** closed-service surprise instead of the second — meaning we might not yet
+  have had the "check if a service still accepts new customers before building against
+  it" instinct that the App Runner incident (§13) taught us, and could plausibly have hit
+  it live via a failed `create-agent` call rather than catching it proactively via docs.
+- The specific IAM permission requests would have landed in a different order
+  (`BedrockAgentCoreFullAccess` before `AmazonECS_FullAccess`), though the total scope of
+  grants ends up about the same either way.
+
+**What would have been identical no matter what: the account-wide Bedrock token quota.**
+This was proven to be a shared, account-level limit — not framework- or client-specific —
+by hitting it through three unrelated API surfaces across three different phases
+(`InvokeModel` directly, `InvokeModelWithResponseStream` via the ECS-deployed app, and
+`ConverseStream` via Strands/AgentCore). Building the agent first would not have avoided
+it or changed how it presented.
+
+**Interview framing:** the fact that a fairly significant framework pivot (Classic Agents
+→ AgentCore, discovered mid-project) touched only one phase's implementation, not the
+surrounding architecture, is itself the strongest evidence that the pluggable-backend /
+clean-separation-of-concerns design (§1) was the right call — good architecture is
+measured by how little a component swap ripples outward, not by getting every choice
+right on the first try.
+
+---
+
+## 18. Cross-cutting lessons for the interview
 
 1. **IAM debugging loop:** attempt → read the exact action name from
    `AccessDeniedException` → grant precisely that. Faster and more accurate than
@@ -824,3 +874,9 @@ Serverless (§7) or the ECS Express service (§14).
     (`InvokeModel` → `InvokeModelWithResponseStream` → `ConverseStream`) is strong
     confirmation it's a genuine account-level budget, not a bug isolated to one client or
     code path — useful for ruling out "maybe it's this specific SDK" as a hypothesis.
+19. **A good architecture is measured by how little a component swap ripples outward, not
+    by getting every choice right the first time.** Pivoting Phase 7's entire agent
+    framework mid-project (Classic Agents → AgentCore) touched only that phase's
+    implementation, not the RAG pipeline, storage, or deployment — a direct payoff of
+    keeping those concerns behind clean interfaces (§1) rather than coupled to whichever
+    agent service happened to be current when each part was built.
