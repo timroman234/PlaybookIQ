@@ -16,7 +16,7 @@ and why. This doc is just the practical "what to do next" checklist.
 | 4 — Real Bedrock model invocation | ⚠️ Code + mocked tests done; **live smoke test blocked by account-wide Bedrock token throttle** |
 | 5 — Embeddings + local RAG | ⚠️ Code + tests done; **live ingestion blocked by the same throttle** |
 | 6 — Bedrock Guardrails | ✅ Done — created, published, verified live |
-| 7 — Bedrock Agents / Action Groups | ⚠️ Local tool contract (`get_player_stats`) done; **real Bedrock Agent not yet created** (deferred due to quota + time) |
+| 7 — Agent tool-calling (pivoted: Bedrock Agents Classic → **Bedrock AgentCore**) | ⚠️ Local tool contract (`get_player_stats`) done; **real AgentCore Gateway + Runtime not yet built** (deferred due to quota + time, then re-scoped once we learned Classic Agents is also closed to new customers) |
 | 8 — FastAPI service layer | ✅ Done |
 | 9 — Streamlit frontend | ✅ Done, verified live in browser |
 | 10 — Containerization | ✅ Done, built + ran + verified live in browser |
@@ -115,13 +115,45 @@ live. The only thing genuinely still blocked is real Bedrock-backed answers, eve
    Phase 13's CDK stack now reproduces this exact setup as code, just use
    `cd cdk && cdk destroy` instead of the manual delete commands (see the CDK section
    below).
-7. **Phase 7 (real Bedrock Agent):** create the Agent + `GetPlayerStats` action group,
-   backed by either a Lambda or "Return of Control" mode (lower friction — recommended given
-   time already spent on IAM back-and-forth this session).
+7. **Phase 7 (real agent tool-calling, via Bedrock AgentCore — see dedicated section
+   below for why):** build the `GetPlayerStats` tool using AgentCore Gateway + Runtime.
 8. **Re-verify Phase 14 end-to-end with real answers**: redeploy the ECS Express service
    (commands below), run a query through the live public URL, and confirm it now returns
    a real grounded Claude response instead of the throttling error — this is the one
    remaining "full" verification, everything else about the deployment already works.
+
+## Phase 7 — pivoted: Bedrock Agents Classic → Bedrock AgentCore
+
+**Why:** discovered (2026-08-01, same session as the App Runner pivot) that Amazon Bedrock
+Agents — what the PRD and our original Phase 7 plan specified — is now called "Bedrock
+Agents Classic" and is **closed to new customers**, straight from AWS's own docs:
+> "Amazon Bedrock Agents (now Amazon Bedrock Agents Classic) is no longer open to new
+> customers. For capabilities similar to Bedrock Agents Classic, explore Amazon Bedrock
+> AgentCore."
+
+Same shape of problem as App Runner (§14) — not a permissions or quota issue, a service
+genuinely closed to new accounts — so we're pivoting *before* attempting it this time,
+rather than discovering it the hard way mid-implementation.
+
+**What AgentCore is, and what we actually need from it:** AgentCore is a modular set of
+primitives (Runtime, Memory, Gateway, Identity, Observability, Policy, Evaluations),
+framework-agnostic, vs. Classic Agents' single opinionated "create-agent + action-group"
+flow. For PlaybookIQ's one bounded tool (`GetPlayerStats`, already implemented locally in
+`app/services/agent_service.py`), we almost certainly only need two of these:
+- **Gateway** — exposes the tool (an API or Lambda) to the agent, replacing Classic Agents'
+  "action group" concept.
+- **Runtime** — hosts/invokes the agent itself in an isolated session.
+
+Memory, Identity, Policy, and Observability are overkill for this single-tool use case —
+scope the implementation to just Gateway + Runtime rather than touching every AgentCore
+primitive because it exists.
+
+**Not yet done:** no AgentCore resources have been created. This is purely a plan update —
+implementation is still pending, deferred behind the same Bedrock token quota issue as
+everything else (AgentCore Runtime ultimately still invokes a Bedrock model). Start with
+`docs.aws.amazon.com/bedrock-agentcore` (Gateway + Runtime getting-started guides) when
+picking this up, since neither has been exercised via CLI/CDK in this project yet and the
+exact API surface should be verified fresh, the same way ECS Express Mode's was.
 
 ## Phase 13 (CDK) — done, here's what exists
 
@@ -244,6 +276,11 @@ everywhere else, proving the deployment itself has zero remaining issues.
 - ECR repo `playbookiq`, ECS cluster `playbookiq-cluster`, log group `/ecs/playbookiq`, and
   all 3 ECS IAM roles already exist and are reusable — redeploying is just the
   `create-express-gateway-service` call, no setup needed.
+- **Bedrock Agents Classic cannot be used going forward** — closed to new customers
+  (confirmed via AWS's own docs, same pattern as App Runner). Phase 7 is re-scoped to
+  **Bedrock AgentCore** (Gateway + Runtime specifically — Memory/Identity/Policy/
+  Observability are unnecessary for our single bounded tool). No AgentCore resources have
+  been created yet — this was a plan update only, made before attempting implementation.
 
 ## Cost status as of last session end
 

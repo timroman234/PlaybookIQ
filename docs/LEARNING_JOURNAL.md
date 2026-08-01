@@ -611,7 +611,53 @@ and CDK (§9).
 
 ---
 
-## 15. Cross-cutting lessons for the interview
+## 15. Bedrock Agents Classic: closed to new customers too — pivoting Phase 7 before building it
+
+The PRD's Phase 7 design ("Bedrock Agents / MCP," a `GetPlayerStats` action group) targets
+what AWS now calls **Bedrock Agents Classic**. Before attempting to build it, we checked
+AWS's current docs — good thing, because the exact same App Runner-shaped problem (§13)
+was waiting:
+
+> "Amazon Bedrock Agents (now Amazon Bedrock Agents Classic) is no longer open to new
+> customers. For capabilities similar to Bedrock Agents Classic, explore Amazon Bedrock
+> AgentCore. Existing customers can continue to use the service as normal."
+
+**This time we caught it before writing any code or hitting a live error**, purely by
+asking "would this even work on a new account" before starting — a direct application of
+§13's lesson (read the platform's own current guidance rather than build from
+documentation/PRD text that may have gone stale).
+
+### What replaces it: Amazon Bedrock AgentCore
+AgentCore is a meaningfully different shape of service than Classic Agents, not just a
+renamed version of it:
+
+| | Bedrock Agents Classic | Bedrock AgentCore |
+|---|---|---|
+| Model | AWS-owned orchestration; configure, don't code | Framework-agnostic infrastructure you compose |
+| Tool mechanism | "Action groups" backed by Lambda | Gateway (exposes APIs/Lambda as tools), MCP servers, Browser, Code Interpreter |
+| Shape | One bundled service | Modular primitives: Runtime, Memory, Gateway, Identity, Observability, Policy, Evaluations |
+| Works with | Bedrock-native only | Strands, LangGraph, CrewAI, LlamaIndex, and others |
+
+**Decision for our single bounded tool** (`get_player_stats`, already implemented locally
+in `app/services/agent_service.py`): use only **Gateway** (exposes the tool, replacing the
+"action group" concept) and **Runtime** (hosts/invokes the agent). Memory, Identity,
+Policy, and Observability all solve real problems AgentCore is built for — conversation
+memory across sessions, per-user credential brokerage, tool-access governance, OpenTelemetry
+tracing — but none of them apply to a single stateless stats lookup. **Lesson, echoing
+§9's IaC point:** a more powerful/modular platform doesn't obligate you to use every piece
+of it; scope to what the actual use case needs, the same discipline as picking CDK L1 vs.
+L2 constructs or OpenSearch Serverless vs. a full self-managed cluster.
+
+**Status:** plan updated, nothing built yet — this pivot happened at the "about to
+implement" moment, before any AgentCore API calls, CLI commands, or resources. When Phase 7
+resumes, start from AgentCore's own getting-started docs for Gateway and Runtime rather
+than assuming the Classic Agents CLI/API knowledge transfers directly — it's a different
+service, not a renamed one, and we've been burned once already this session (§3, §7) by
+assuming stale documentation matches the current API surface.
+
+---
+
+## 16. Cross-cutting lessons for the interview
 
 1. **IAM debugging loop:** attempt → read the exact action name from
    `AccessDeniedException` → grant precisely that. Faster and more accurate than
@@ -666,3 +712,13 @@ and CDK (§9).
     Express Mode teardown hit and auto-resolved exactly this (a security group waiting on
     its ALB's network interface to detach) within about a minute, without any manual
     intervention.
+14. **"Is this service still open to new customers?" is worth asking before building
+    against any AWS service named in an older spec or PRD, not just when something fails.**
+    Both App Runner and Bedrock Agents Classic turned out to be closed to new customers —
+    caught the second one proactively by checking docs first, rather than discovering it
+    mid-implementation like the first.
+15. **A more modular/powerful replacement service doesn't mean using all of it.**
+    AgentCore offers seven-ish composable primitives; our use case needs two (Gateway,
+    Runtime). Scoping to what's actually needed, not what's available, is the same
+    discipline that applies to CDK L1 vs. L2 constructs and managed vs. self-hosted
+    infrastructure choices generally.

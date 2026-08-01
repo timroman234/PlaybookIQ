@@ -60,6 +60,11 @@ docker run --rm -p 8501:8501 --env-file .env playbookiq:local
   goes through **Amazon ECS Express Mode** instead (AWS's own recommended replacement);
   it still requires a pre-built container image (Phase 10's Dockerfile), it just automates
   the surrounding infrastructure (ALB, HTTPS, security groups, auto-scaling).
+- **Bedrock Agents Classic cannot be used either** — also closed to new customers. Phase 7
+  (`get_player_stats` tool-calling) goes through **Bedrock AgentCore** instead, specifically
+  just the Gateway + Runtime components — don't build against Classic Agents' `create-agent`
+  API, and don't reach for AgentCore's Memory/Identity/Policy/Observability pieces either,
+  since none of them apply to this single stateless tool.
 
 ## Conventions
 
