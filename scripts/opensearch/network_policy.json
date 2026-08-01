@@ -1,0 +1,9 @@
+[
+  {
+    "Rules": [
+      {"ResourceType": "collection", "Resource": ["collection/playbookiq-vectors"]},
+      {"ResourceType": "dashboard", "Resource": ["collection/playbookiq-vectors"]}
+    ],
+    "AllowFromPublic": true
+  }
+]

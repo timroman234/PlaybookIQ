@@ -1,0 +1,17 @@
+[
+  {
+    "Rules": [
+      {
+        "ResourceType": "collection",
+        "Resource": ["collection/playbookiq-vectors"],
+        "Permission": ["aoss:*"]
+      },
+      {
+        "ResourceType": "index",
+        "Resource": ["index/playbookiq-vectors/*"],
+        "Permission": ["aoss:*"]
+      }
+    ],
+    "Principal": ["arn:aws:iam::206152729458:user/playbookiq-dev"]
+  }
+]
