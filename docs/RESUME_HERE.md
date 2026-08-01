@@ -1,6 +1,6 @@
 # Resume Here
 
-Last worked on: **2026-07-31**. Read this first when picking the build back up.
+Last worked on: **2026-08-01**. Read this first when picking the build back up.
 
 See [`LEARNING_JOURNAL.md`](./LEARNING_JOURNAL.md) for the full narrative of what happened
 and why. This doc is just the practical "what to do next" checklist.
@@ -22,29 +22,43 @@ and why. This doc is just the practical "what to do next" checklist.
 | 10 — Containerization | ✅ Done, built + ran + verified live in browser |
 | 11 — Real S3 swap-in | ✅ Done — bucket created, data uploaded, verified |
 | 12 — Real OpenSearch Serverless + Bedrock KB | ⚠️ Collection + index + policies were created and verified, **then torn down** to stop billing once the Bedrock quota blocked ingestion. Code (`OpenSearchServerlessBackend`) is done and unit-tested. Bedrock Knowledge Base itself was never created. |
-| 13 — AWS CDK | ⬜ Not started |
+| 13 — AWS CDK | ✅ Done — bootstrap → synth → deploy → verify → destroy all done live against real AWS (see below) |
 | 14 — AWS App Runner deployment | ⬜ Not started |
 
 ## The one blocker that matters: Bedrock token quota
 
-Everything currently blocked traces back to one thing:
+**Update (2026-08-01):** re-checked after a full day — still blocked, same error:
 ```
 ThrottlingException: Too many tokens per day, please wait before trying again.
 ```
 on `bedrock-runtime invoke_model` (both Claude and Titan Embeddings — it's an
-account-wide budget, not per-model).
+account-wide budget, not per-model). **This did not clear on a simple 24h wait**, so it's
+not a rolling daily reset — it needs an explicit fix, not more waiting.
 
-**First thing to do when resuming:**
-```bash
-cd F:/AIML_Apps/PlaybookIQ
-uv run python scripts/smoke_test_bedrock.py
-```
-- If this returns real Claude responses for both Haiku and Sonnet → quota has cleared,
-  proceed to the checklist below.
-- If still throttled → either wait longer, or go to **AWS Console → Service Quotas →
-  Amazon Bedrock** and request an increase on the relevant "tokens per day" quota (note:
-  `playbookiq-dev` doesn't have `servicequotas:*` permissions to do this via CLI — would
-  need a console user with broader access, or an added IAM grant).
+We checked **AWS Console → Service Quotas → Amazon Bedrock** to request an increase, but
+almost all relevant quotas showed as **"Not Available"/not adjustable** — this is common
+for newer Bedrock models (AWS centrally controls this GPU-constrained inference capacity,
+there's often no self-service dial at all) and/or reflects this being a very new account
+without an established usage/billing history yet.
+
+**Next things to try, in order:**
+1. **AWS Support case** — even Basic (free) support can open a "Service limit increase"
+   case for Bedrock through the Support Center; this sometimes succeeds where the
+   self-service Service Quotas UI shows "Not adjustable."
+2. **Let the account age** — usage/billing history sometimes unlocks higher default quotas
+   automatically after the account has a completed billing cycle or two.
+3. **First thing to check when resuming, regardless of the above:**
+   ```bash
+   cd F:/AIML_Apps/PlaybookIQ
+   uv run python scripts/smoke_test_bedrock.py
+   ```
+   If this returns real Claude responses for both Haiku and Sonnet, the quota has cleared —
+   proceed to the checklist below.
+
+**In the meantime**, Phase 13 (CDK) is now fully done without needing Bedrock at all — see
+below. Phase 14 (App Runner) is next and also doesn't strictly need Bedrock to deploy
+(though the deployed app's `/query` endpoint won't produce real answers until the quota
+clears).
 
 ## Checklist once the quota clears
 
@@ -89,14 +103,38 @@ uv run python scripts/smoke_test_bedrock.py
    via CLI.
 6. **Tear down OpenSearch Serverless again** once verified (same delete commands as before —
    see `LEARNING_JOURNAL.md` §7 or just reverse the create commands above with
-   `delete-collection` / `delete-security-policy` / `delete-access-policy`).
+   `delete-collection` / `delete-security-policy` / `delete-access-policy`) — or, since
+   Phase 13's CDK stack now reproduces this exact setup as code, just use
+   `cd cdk && cdk destroy` instead of the manual delete commands (see the CDK section
+   below).
 7. **Phase 7 (real Bedrock Agent):** create the Agent + `GetPlayerStats` action group,
    backed by either a Lambda or "Return of Control" mode (lower friction — recommended given
    time already spent on IAM back-and-forth this session).
-8. **Phase 13 (CDK):** migrate the manually-created S3 bucket + OpenSearch
-   Serverless collection into `cdk/playbookiq_stack.py` as code.
-9. **Phase 14 (App Runner):** push the image to ECR, deploy via CDK's App Runner
-   construct with a scoped instance role (no baked-in credentials).
+8. **Phase 14 (App Runner):** push the image to ECR, extend `cdk/playbookiq_stack.py` with
+   an App Runner service + scoped instance role (no baked-in credentials), `cdk deploy`.
+
+## Phase 13 (CDK) — done, here's what exists
+
+`cdk/app.py` + `cdk/playbookiq_stack.py` define the S3 bucket + OpenSearch Serverless
+collection (3 policies + collection) as code — verified with a full live
+bootstrap → synth → deploy → verify → destroy cycle on 2026-08-01 (~7 minutes of
+OpenSearch Serverless exposure, negligible cost). The stack currently creates a
+**separate** CDK-managed bucket (`playbookiq-cdk-docs-<account-id>`) rather than importing
+the Phase 11 manually-created one (`playbookiq-raw-docs-206152729458`), to avoid a naming
+conflict — both exist independently; consolidate later if desired.
+
+To redeploy: `cd cdk && AWS_PROFILE=playbookiq AWS_REGION=us-east-1 cdk deploy --require-approval never`
+(bootstrap already done for this account/region, no need to repeat). **Remember to
+`cdk destroy` promptly after verifying** — the collection bills the moment it's `ACTIVE`.
+
+Getting CDK working needed two more IAM grants beyond what Phase 1/12 already had:
+- `AWSCloudFormationFullAccess` (managed policy) — CDK deploy/destroy is fundamentally
+  CloudFormation stack operations.
+- IAM role management scoped to `cdk-*`-named roles, plus `ecr:*` and scoped `ssm:*`,
+  added to the existing custom `PlaybookIQOpenSearchServerlessAccess` policy — needed for
+  `cdk bootstrap` to create its one-time deployment roles
+  (`cdk-hnb659fds-*`) and asset repositories. See `LEARNING_JOURNAL.md` for the exact
+  policy JSON.
 
 ## Things already resolved — don't redo this troubleshooting
 
@@ -112,13 +150,22 @@ uv run python scripts/smoke_test_bedrock.py
   to recreate it.
 - S3 bucket `playbookiq-raw-docs-206152729458` exists with all 8 synthetic data files
   already uploaded.
+- CDK is bootstrapped for account `206152729458` / `us-east-1` (`CDKToolkit` stack) — no
+  need to re-run `cdk bootstrap`, just `cdk deploy` / `cdk destroy` going forward.
+- `playbookiq-dev` now also has `AWSCloudFormationFullAccess` plus scoped IAM
+  role-management (`cdk-*`), `ecr:*`, and scoped `ssm:*` permissions (needed for CDK) —
+  don't re-request these if CDK commands fail for an unrelated reason.
 
 ## Cost status as of last session end
 
 Everything continuously-billed was torn down before pausing:
-- OpenSearch Serverless collection + all 3 policies: **deleted**
+- OpenSearch Serverless collection + all 3 policies: **deleted** (both the manually-created
+  one from Phase 12 and the CDK-deployed one from Phase 13's verification)
 - Docker containers: **stopped**
-- No App Runner, CDK stacks, Lambda functions, or EC2 instances exist
+- The CDK stack (`PlaybookIQStack`) itself: **destroyed** — only the bootstrap's own
+  `CDKToolkit` stack remains (S3 assets bucket, ECR repo, IAM roles — negligible/no idle
+  cost, fine to leave for future CDK work)
+- No App Runner services, Lambda functions, or EC2 instances exist
 
-Remaining resources (S3 bucket, IAM user, Bedrock Guardrail) are pay-per-use or free at
-rest — safe to leave indefinitely.
+Remaining resources (2 S3 buckets, IAM user, Bedrock Guardrail, CDK bootstrap resources)
+are pay-per-use or free at rest — safe to leave indefinitely.

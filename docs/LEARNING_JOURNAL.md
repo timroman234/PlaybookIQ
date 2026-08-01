@@ -336,7 +336,99 @@ continuously-billed tier running between work sessions.
 
 ---
 
-## 8. Docker — a lesson in resource constraints, not AWS
+## 8. Bedrock quota, day 2: it's not a rolling reset
+
+Came back the next day expecting the "tokens per day" throttle (§3) to have cleared.
+It hadn't — identical error, verbatim. That ruled out the simplest hypothesis (a rolling
+24h window) and meant this needed an actual fix, not more waiting.
+
+Went to **AWS Console → Service Quotas → Amazon Bedrock** to request an increase. Nearly
+every relevant quota showed as **"Not Available"** — no self-service increase button at
+all. This surprised us enough to wonder if it was something account-specific (a
+non-US-issued card on file was the first guess) — **it wasn't**. AWS bills internationally
+routinely; card-issuing country doesn't gate Service Quotas. The real explanations, in
+likely order:
+
+1. **Many Bedrock inference quotas simply aren't adjustable via self-service at all** —
+   AWS centrally manages this because it's GPU-constrained inference capacity, not just a
+   policy dial they can turn up on request the way, say, an S3 request-rate limit might be.
+2. **Account maturity** — a brand-new account (this one was created same-day) often sits on
+   conservative defaults until it has an established usage/billing history.
+
+**The lesson, independent of whether we ever get it raised:** not every AWS quota is
+self-service, and "the console won't let me increase it" isn't a dead end — the next lever
+is an **AWS Support case** (even Basic/free support can open a service-limit-increase
+request for Bedrock), which sometimes succeeds where the Service Quotas UI shows nothing
+adjustable. We didn't need to fully resolve this to keep making progress, though — Phase 13
+(CDK) doesn't touch Bedrock at all, so we moved there instead of blocking on it.
+
+---
+
+## 9. AWS CDK — infrastructure as code
+
+### The IAM escalation ladder, one more rung
+Every new AWS capability in this build has meant one more IAM grant (§2), and CDK was the
+biggest jump yet. `cdk bootstrap` — the one-time, per-account/region setup that creates the
+`CDKToolkit` CloudFormation stack plus deployment roles, an S3 assets bucket, and an ECR
+asset repo — needs:
+- `cloudformation:*` (attached the managed `AWSCloudFormationFullAccess` policy) — CDK
+  deploy/destroy is fundamentally CloudFormation stack management under the hood.
+- `iam:CreateRole`/`AttachRolePolicy`/`PutRolePolicy`/etc., because bootstrap provisions
+  its own deployment roles (`cdk-hnb659fds-cfn-exec-role-...`,
+  `cdk-hnb659fds-deploy-role-...`, `cdk-hnb659fds-file-publishing-role-...`, etc.) —
+  scoped this to `arn:aws:iam::*:role/cdk-*` rather than granting blanket IAM admin.
+- `ecr:*` (for the container asset repository) and scoped `ssm:*` (for the
+  `/cdk-bootstrap/hnb659fds/version` parameter CDK uses to track bootstrap versions).
+
+**Interview talking point:** CDK's bootstrap step is doing real, visible work — it's not
+magic. Running it with `--verbose` or just watching the CloudFormation events (as we did)
+shows exactly what it creates: `LookupRole`, `FilePublishingRole`, `ImagePublishingRole`,
+`CloudFormationExecutionRole`, `DeploymentActionRole`, a staging S3 bucket, an ECR repo, and
+an SSM parameter. Understanding *why* CDK needs each of these (cross-account/cross-region
+lookups, asset publishing, the actual deploy execution role CloudFormation assumes) is a
+better answer in an interview than "you just run `cdk bootstrap` once."
+
+### L1 constructs for a service without full L2 support
+OpenSearch Serverless doesn't have rich L2 (object-oriented, sensible-defaults) CDK
+constructs yet — we used the `Cfn*` L1 constructs (`CfnCollection`, `CfnSecurityPolicy`,
+`CfnAccessPolicy`), which map almost 1:1 onto raw CloudFormation resource properties. This
+meant hand-building the same policy JSON documents we'd already used manually via the CLI
+(§7) and passing them as JSON strings into `policy=json.dumps(...)` properties — more
+verbose than a typical L2 experience (no smart defaults, no convenience methods), but a
+direct, honest mapping onto what the console/CLI does. `CfnCollection` won't create
+successfully unless its 3 policies already exist, and **CDK doesn't infer this dependency
+automatically** since the policies are referenced by name string, not by construct
+reference — we had to add explicit `.add_dependency(...)` calls, or `cdk deploy` will
+happily try to create the collection before its policies exist and fail exactly like the
+manual CLI attempt did in §7.
+
+### The full lifecycle, verified live
+```bash
+cdk bootstrap aws://206152729458/us-east-1   # one-time per account/region
+cdk synth                                     # validates the template, zero AWS calls
+cdk deploy --require-approval never            # creates real resources
+cdk destroy --force                            # tears them down
+```
+Ran the complete cycle in one focused session: `cdk synth` produced valid CloudFormation,
+`cdk deploy` created both the S3 bucket and a fully `ACTIVE` OpenSearch Serverless
+collection (~5 minutes, mostly waiting on the collection), we verified both existed via
+plain `aws` CLI calls (not just trusting CDK's own "success" message), then `cdk destroy`
+removed everything cleanly in about 11 seconds. Total OpenSearch Serverless billing
+exposure: roughly 7 minutes (~$0.05) — proof that "create, verify, tear down" as a
+deliberate habit (§7) works in practice, not just as a principle.
+
+### Doing it manually first, then as code, was the right call
+Having already built the OpenSearch Serverless setup by hand via the CLI (§7) made the CDK
+version easy to sanity-check — every property in `CfnSecurityPolicy`/`CfnAccessPolicy`
+mapped directly onto JSON we'd already written and understood. Writing the CDK stack
+*first*, without that manual context, would have meant debugging CDK abstractions and
+OpenSearch Serverless's unusual security model at the same time — worth remembering as a
+general learning strategy: do the manual/CLI version of something once before automating
+it, so you can tell "CDK is wrong" apart from "I don't understand this AWS service yet."
+
+---
+
+## 10. Docker — a lesson in resource constraints, not AWS
 
 Not an AWS topic, but worth recording because it consumed real troubleshooting time and is
 a genuinely common environment issue: this machine has only **8GB total RAM**, and at one
@@ -357,7 +449,7 @@ Once memory freed up: `docker build` succeeded with the `uv`-based Dockerfile, a
 
 ---
 
-## 9. FastAPI + Streamlit — the app layer
+## 11. FastAPI + Streamlit — the app layer
 
 Two real processes, not a monolith: Streamlit (`app/ui.py`) is a pure HTTP client of
 FastAPI (`app/main.py`) via `requests`, matching the PRD's architecture diagram
@@ -373,7 +465,7 @@ real AWS credentials or network calls needed in `tests/test_main.py`.
 
 ---
 
-## 10. Cross-cutting lessons for the interview
+## 12. Cross-cutting lessons for the interview
 
 1. **IAM debugging loop:** attempt → read the exact action name from
    `AccessDeniedException` → grant precisely that. Faster and more accurate than
@@ -396,3 +488,16 @@ real AWS credentials or network calls needed in `tests/test_main.py`.
 6. **A guardrail can be tested even when generation is throttled** — because guardrail
    input-blocking short-circuits before full model generation, it's a cheap way to prove
    wiring correctness independent of token budget.
+7. **Not every AWS quota has a simple time-based reset, and not every quota is
+   self-service adjustable.** "Too many tokens per day" didn't clear after a full 24h
+   wait, and Service Quotas showed most Bedrock inference quotas as "Not Available" for
+   this account — the real next lever is an AWS Support case, not more waiting.
+8. **"Create manually first, then automate with IaC" is a genuine debugging strategy**,
+   not just a sequencing preference — having already built OpenSearch Serverless by hand
+   made every CDK `Cfn*` property immediately recognizable, isolating "is this a CDK
+   mistake" from "do I understand this AWS service" as two separate questions instead of
+   one tangled one.
+9. **IaC tooling has its own IAM footprint, separate from the workload it deploys.**
+   `cdk bootstrap` needed `cloudformation:*`, scoped IAM role management, `ecr:*`, and
+   `ssm:*` — none of which the *application* itself needs at runtime. Don't conflate
+   "permissions to deploy infrastructure" with "permissions the deployed workload uses."

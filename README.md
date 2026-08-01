@@ -25,7 +25,7 @@ hands-on practice.
 - [x] Phase 10 — Containerization (built + ran locally, verified end-to-end in browser)
 - [x] Phase 11 — Real S3 swap-in (bucket created, data uploaded, verified)
 - [ ] Phase 12 — Real OpenSearch Serverless + Bedrock Knowledge Base (collection, policies, and k-NN index were created and verified, then torn down to stop billing before ingestion could complete — see docs)
-- [ ] Phase 13 — AWS CDK infrastructure as code
+- [x] Phase 13 — AWS CDK infrastructure as code (bootstrap → synth → deploy → verify → destroy all done live; S3 bucket + OpenSearch Serverless collection provisioned as code and torn down within ~7 minutes)
 - [ ] Phase 14 — AWS App Runner deployment
 
 **Known blocker:** the AWS account is hitting `ThrottlingException: Too many tokens per day`
