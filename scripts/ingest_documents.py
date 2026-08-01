@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from dotenv import load_dotenv
 
 from app.services.embedding_service import EmbeddingService
-from app.services.vector_store import LocalVectorStore
+from app.services.vector_store import get_vector_store
 
 load_dotenv()
 
@@ -87,7 +87,7 @@ def documents_from_manifest_text_files(manifest_path: Path) -> list[dict]:
 
 def main() -> None:
     embedding_service = EmbeddingService()
-    vector_store = LocalVectorStore()
+    vector_store = get_vector_store()
 
     documents = (
         documents_from_players(DATA_DIR / "players.json")
@@ -109,7 +109,7 @@ def main() -> None:
             },
         )
 
-    print(f"Ingested {len(documents)} chunks into {vector_store.persist_path}")
+    print(f"Ingested {len(documents)} chunks into {type(vector_store).__name__}")
 
 
 if __name__ == "__main__":

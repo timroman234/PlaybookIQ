@@ -24,7 +24,7 @@ hands-on practice.
 - [x] Phase 9 — Streamlit frontend (Carbon theme)
 - [x] Phase 10 — Containerization (built + ran locally, verified end-to-end in browser)
 - [x] Phase 11 — Real S3 swap-in (bucket created, data uploaded, verified)
-- [ ] Phase 12 — Real OpenSearch Serverless + Bedrock Knowledge Base
+- [ ] Phase 12 — Real OpenSearch Serverless + Bedrock Knowledge Base (collection, policies, and k-NN index were created and verified, then torn down to stop billing before ingestion could complete — see docs)
 - [ ] Phase 13 — AWS CDK infrastructure as code
 - [ ] Phase 14 — AWS App Runner deployment
 
@@ -35,6 +35,13 @@ a daily quota reset or a Service Quota increase request. Also note: the PRD's li
 `claude-3-5-sonnet-20240620` model ID is gone from the catalog; newer Claude models need
 an inference profile ID (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`, etc.), and the
 very newest model (`claude-sonnet-5`) is access-denied separately from the rest.
+
+## Documentation
+
+- [`docs/RESUME_HERE.md`](docs/RESUME_HERE.md) — current status and exact next steps
+- [`docs/LEARNING_JOURNAL.md`](docs/LEARNING_JOURNAL.md) — full AWS learning writeup:
+  every service used, every real error hit and its fix, and interview talking points
+- [`CLAUDE.md`](CLAUDE.md) — quick orientation for working in this codebase
 
 ## Local development
 

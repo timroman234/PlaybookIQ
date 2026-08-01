@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 from app.services.embedding_service import EmbeddingService
 from app.services.rag_service import RagService
-from app.services.vector_store import LocalVectorStore
+from app.services.vector_store import get_vector_store
 
 load_dotenv()
 
@@ -21,7 +21,7 @@ load_dotenv()
 def main() -> None:
     query = sys.argv[1] if len(sys.argv) > 1 else "What is Isaiah Whitfield's injury status?"
 
-    rag = RagService(EmbeddingService(), LocalVectorStore())
+    rag = RagService(EmbeddingService(), get_vector_store())
     results = rag.retrieve(query, top_k=3, similarity_threshold=0.0)
 
     print(f"Query: {query}\n")
