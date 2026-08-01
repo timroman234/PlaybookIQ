@@ -23,7 +23,7 @@ hands-on practice.
 - [x] Phase 4 — Real Bedrock model invocation (code + mocked tests done; live invoke_model blocked by daily token quota, see below)
 - [x] Phase 5 — Embeddings + local RAG (code + tests done; live ingestion blocked by the same quota)
 - [x] Phase 6 — Bedrock Guardrails (created + published + verified live: PII prompt correctly blocked)
-- [x] Phase 7 — Agent tool-calling (pivoted: Bedrock Agents Classic → **Bedrock AgentCore**, since Classic is also closed to new customers; local tool contract done, AgentCore Gateway + Runtime deferred until quota clears)
+- [x] Phase 7 — Agent tool-calling via **Bedrock AgentCore Runtime** (pivoted from Bedrock Agents Classic, also closed to new customers) — container-based deployment (arm64/ECR), invoked live end-to-end, task role auth confirmed, hit the same known Bedrock quota via a third API
 - [x] Phase 8 — FastAPI service layer
 - [x] Phase 9 — Streamlit frontend (Carbon theme)
 - [x] Phase 10 — Containerization (built + ran locally, verified end-to-end in browser)

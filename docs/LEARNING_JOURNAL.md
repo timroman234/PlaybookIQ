@@ -657,7 +657,94 @@ assuming stale documentation matches the current API surface.
 
 ---
 
-## 16. Cross-cutting lessons for the interview
+## 16. Building Phase 7 on Bedrock AgentCore — from zero to a working (throttled) agent
+
+Picked this back up the same day. Rather than trust any single blog post's code sample,
+verified the actual installed API surface directly — `uv run --with bedrock-agentcore
+--with strands-agents python -c "..."` to inspect `BedrockAgentCoreApp` and Strands'
+`Agent` class before writing a line of real code. This caught two things blog posts
+either got subtly wrong or didn't mention at all (see below), for free, before wasting a
+deploy cycle on them.
+
+### Skipped Gateway entirely — and skipped the `agentcore-cli` tool too
+Confirmed the plan from §15: our one bounded tool doesn't need AgentCore Gateway. Built it
+as a plain Strands `@tool`-decorated function wrapping the existing `get_player_stats`
+logic, running in the same process as the agent — no separate Gateway resource, no Lambda,
+no MCP server. Also skipped the new `agentcore-cli` (npm package `@aws/agentcore`) that's
+superseded the older `bedrock-agentcore-starter-toolkit` — it's TUI-first with no
+documented non-interactive mode, which doesn't fit a scripted/CI-style workflow. Went
+straight to `aws bedrock-agentcore-control create-agent-runtime` instead, the same
+direct-API approach that worked well for Guardrails, OpenSearch Serverless, and ECS
+Express Mode all session — `--generate-cli-skeleton input` gave an authoritative,
+version-matched example of the exact request shape, more reliable than any blog post for
+a service this new.
+
+### Two deployment paths, and the first one hit an undocumented (to us) hard limit
+`create-agent-runtime`'s `agentRuntimeArtifact` supports either `codeConfiguration` (zip
+on S3, dependencies installed at cold-start) or `containerConfiguration` (pre-built image
+from ECR). Tried code-based first since it skips Docker entirely — but it failed with:
+```
+RuntimeClientError: Runtime initialization time exceeded. Please make sure that
+initialization completes in 30s.
+```
+Strands' own dependency tree (opentelemetry, mcp, cryptography, httpx, and more) is too
+heavy to `pip install` from a cold start inside a 30-second budget. **Pivoted to the
+container path** — same Docker + ECR pattern already built out in Phases 10 and 14, just
+targeting a different AWS consumer of the image. One new constraint: AgentCore Runtime
+requires **arm64** images specifically, built here with
+`docker buildx build --platform linux/arm64`. Also learned mid-pivot that
+**`update-agent-runtime` cannot change the artifact type** once created
+(`codeConfiguration` ↔ `containerConfiguration` — `ValidationException: Agent artifact
+type cannot be updated`) — had to `delete-agent-runtime` and `create-agent-runtime` fresh
+rather than migrate the existing one.
+
+### The concurrency bug — a real design mistake, not a platform quirk
+First container-based invoke reached the agent code (no more init-timeout) but failed
+differently:
+```
+ConcurrencyException: Agent is already processing a request. Concurrent invocations are
+not supported.
+```
+The actual bug: `agent.py` built the Strands `Agent` **once at module import time** and
+reused that single instance across every request the warm container received — but
+Strands agents hold per-conversation state and aren't safe to share across concurrent
+invocations of the same process. Fix: construct a fresh `Agent(...)` **inside** the
+`@app.entrypoint` function, once per request, instead of module-level. This is the same
+category of mistake as sharing a database connection or a non-thread-safe client across
+requests in any web framework — AgentCore Runtime didn't do anything unusual here, our
+code just assumed single-request-at-a-time without that being a guarantee.
+
+### Verified — hit the exact same known quota, from a third API surface
+After the concurrency fix, the container-based agent ran cleanly end-to-end: no init
+timeout, no concurrency error, task role credentials worked with zero access keys
+(matching the pattern already proven in Phase 14). It failed only on the actual Bedrock
+call:
+```
+ModelThrottledException: An error occurred (ThrottlingException) when calling the
+ConverseStream operation (reached max retries: 4): Too many tokens per day, please wait
+before trying again.
+```
+This is the identical account-wide daily token quota from §3/§8/§14 — now confirmed
+against a **third** distinct Bedrock API surface (`InvokeModel`, `InvokeModelWithResponseStream`
+via ECS, and now `ConverseStream` via Strands' Bedrock model provider), reinforcing that
+this is genuinely one account-level budget shared across every code path that reaches
+Bedrock, not something specific to any one client library or invocation style.
+
+### Cost model — different from OpenSearch Serverless and ECS, no forced teardown needed
+AgentCore Runtime bills on **active consumption**, not continuous provisioning: CPU is
+billed only while the agent is actively processing (idle time waiting on an LLM/tool
+response doesn't accrue CPU charges), though memory bills for the full duration a session
+stays alive (`idleRuntimeSessionTimeout`, 900s by default) even during idle waits within
+that session. There's no standing reserved compute the way an ALB + Fargate task or an
+OpenSearch Serverless collection has — a runtime *definition* sitting unused costs
+nothing, much closer to Bedrock/S3's pay-per-use model than to Phase 12/14's
+continuously-billed infrastructure. **Practical result: no urgency to delete the
+AgentCore Runtime or its ECR image after this verification**, unlike OpenSearch
+Serverless (§7) or the ECS Express service (§14).
+
+---
+
+## 17. Cross-cutting lessons for the interview
 
 1. **IAM debugging loop:** attempt → read the exact action name from
    `AccessDeniedException` → grant precisely that. Faster and more accurate than
@@ -718,7 +805,22 @@ assuming stale documentation matches the current API surface.
     caught the second one proactively by checking docs first, rather than discovering it
     mid-implementation like the first.
 15. **A more modular/powerful replacement service doesn't mean using all of it.**
-    AgentCore offers seven-ish composable primitives; our use case needs two (Gateway,
-    Runtime). Scoping to what's actually needed, not what's available, is the same
-    discipline that applies to CDK L1 vs. L2 constructs and managed vs. self-hosted
-    infrastructure choices generally.
+    AgentCore offers seven-ish composable primitives; our use case ended up needing just
+    one (Runtime — Gateway turned out to be unnecessary too, once actually built, since a
+    single in-process tool doesn't need a separate resource to expose it). Scoping to
+    what's actually needed, not what's available, is the same discipline that applies to
+    CDK L1 vs. L2 constructs and managed vs. self-hosted infrastructure choices generally.
+16. **Inspecting the installed library's real API directly beats trusting any single
+    blog post**, especially for something this new. A one-line `uv run --with <pkg>
+    python -c "..."` to check a class's actual `__init__`/method signatures caught the
+    correct entrypoint/decorator shape before writing real code, and cost less time than
+    guessing wrong and debugging a deploy failure instead.
+17. **Sharing a stateful client/object across concurrent requests is a general web-service
+    bug, not an AWS-specific one** — a module-level Strands `Agent` instance reused across
+    invocations broke under concurrency the same way a shared DB connection or non-thread-
+    safe client would in any framework. The fix (construct fresh per-request) is generic
+    web-service hygiene, not something particular to AgentCore.
+18. **The same root-cause quota surfacing through a third, completely different API call**
+    (`InvokeModel` → `InvokeModelWithResponseStream` → `ConverseStream`) is strong
+    confirmation it's a genuine account-level budget, not a bug isolated to one client or
+    code path — useful for ruling out "maybe it's this specific SDK" as a hypothesis.

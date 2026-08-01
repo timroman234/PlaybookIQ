@@ -25,3 +25,9 @@ cdk/node_modules/
 
 # Claude Code local state
 .claude/
+
+# AgentCore deployment package build artifacts
+agentcore/dist/
+agentcore/_staging/
+agentcore/_test_extract/
+agentcore/__pycache__/

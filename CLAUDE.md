@@ -61,10 +61,14 @@ docker run --rm -p 8501:8501 --env-file .env playbookiq:local
   it still requires a pre-built container image (Phase 10's Dockerfile), it just automates
   the surrounding infrastructure (ALB, HTTPS, security groups, auto-scaling).
 - **Bedrock Agents Classic cannot be used either** — also closed to new customers. Phase 7
-  (`get_player_stats` tool-calling) goes through **Bedrock AgentCore** instead, specifically
-  just the Gateway + Runtime components — don't build against Classic Agents' `create-agent`
-  API, and don't reach for AgentCore's Memory/Identity/Policy/Observability pieces either,
-  since none of them apply to this single stateless tool.
+  (`get_player_stats` tool-calling) runs on **Bedrock AgentCore Runtime only** (no Gateway —
+  unnecessary for a single in-process tool; no Memory/Identity/Policy/Observability either).
+  Deployed as a **container** (arm64, via `agentcore/Dockerfile` + ECR), not the code/S3-zip
+  path — that path hits a hard 30s cold-start init limit that Strands' dependency tree
+  can't fit inside. The Strands `Agent` object must be constructed fresh inside
+  `@app.entrypoint`, never at module level (shared state breaks under concurrent
+  invocations). See `docs/RESUME_HERE.md`'s Phase 7 section for exact rebuild/redeploy/
+  invoke commands.
 
 ## Conventions
 
